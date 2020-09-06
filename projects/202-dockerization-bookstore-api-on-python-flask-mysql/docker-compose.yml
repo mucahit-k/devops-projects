@@ -9,7 +9,7 @@ services:
             MYSQL_USER: clarusway
             MYSQL_PASSWORD: Clarusway_1
         networks:
-            -clarusnet
+            - clarusnet
     my-app:
         image: koca/bookstore-api:latest
         restart: always
