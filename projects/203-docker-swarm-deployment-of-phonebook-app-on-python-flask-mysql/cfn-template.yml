@@ -1,0 +1,226 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  This Cloudformation Template creates a phonebook application web application developed in Python Flask, 
+  deployed with Docker Swarm on Elastic Compute Cloud (EC2) Instances by pulling the app images from 
+  the AWS Elastic Container Registry (ECR) repository.
+Parameters:
+  KeyPairName:
+    Description: Enter the name of your Key Pair for SSH connections.
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: Must be one of the existing EC2 KeyPair
+Resources:
+  InstanceConnectPolicy:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      PolicyDocument: #required
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - ec2-instance-connect:SendSSHPublicKey
+            Resource:
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*
+            Condition: {"StringEquals": {"ec2:osuser": "ubuntu"}}
+          - Effect: Allow
+            Action:
+              - ec2:DescribeInstances
+            Resource: "*"
+  EC2InstanceConnect:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - !Ref InstanceConnectPolicy
+  EC2FullAccessToECR:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+  EC2ConnectandECRProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Roles: #required
+        - !Ref EC2InstanceConnect
+        - !Ref EC2FullAccessToECR
+  SwarmSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH for Kube Masters
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 2377
+          ToPort: 2377
+          CidrIp: 0.0.0.0/0
+
+  SwarmSGIngress1:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    Properties:
+      GroupId: !GetAtt SwarmSecurityGroup.GroupId
+      IpProtocol: -1 #required
+      SourceSecurityGroupId: !GetAtt SwarmSecurityGroup.GroupId
+
+  GrandMaster:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0c94855ba95c71c99
+      InstanceType: t2.micro
+      KeyName: !Ref KeyPairName
+      IamInstanceProfile: !Ref EC2ConnectandECRProfile
+      SecurityGroupIds:
+        - !GetAtt SwarmSecurityGroup.GroupId
+      Tags:                
+        -                        
+          Key: Name
+          Value: !Sub Grand Master of ${AWS::StackName}
+      UserData: 
+        Fn::Base64: 
+          !Sub |
+            #! /bin/bash
+            yum update -y
+            hostnamectl set-hostname Grand-Master
+            chmod 777 /etc/sysctl.conf
+            cat "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+            sysctl -p
+            chmod 644 /etc/sysctl.conf
+            amazon-linux-extras install docker -y
+            systemctl start docker
+            systemctl enable docker
+            usermod -aG docker ubuntu
+            newgrp docker
+            curl -L "https://github.com/docker/compose/releases/download/1.26.2/docker-compose-$(uname -s)-$(uname -m)" \
+            -o /usr/bin/docker-compose
+            chmod +x /usr/bin/docker-compose
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip awscliv2.zip
+            ./aws/install
+            yum install git -y
+            docker swarm init
+            docker service create --name=viz --publish=8080:8080/tcp --constraint=node.role==manager --mount=type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+            dockersamples/visualizer
+            aws ecr create-repository --repository-name mucahit-k/phonebook-app
+            docker build -t "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/mucahit-k/phonebook-app:latest" \
+            https://github.com/mucahit-k/devops-projects.git#:projects/203-docker-swarm-deployment-of-phonebook-app-on-python-flask-mysql
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com"
+            docker push "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/mucahit-k/phonebook-app:latest"
+
+
+
+  ManagerLT:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: DockerManagerLaunchTemplate
+      LaunchTemplateData: 
+        ImageId: ami-0c94855ba95c71c99
+        InstanceType: t2.micro
+        KeyName: !Ref KeyPairName
+        IamInstanceProfile: !Ref EC2ConnectandECRProfile
+        SecurityGroupIds:
+          - !GetAtt SwarmSecurityGroup.GroupId
+        UserData: 
+          Fn::Base64: 
+            !Sub |
+              #! /bin/bash
+              yum update -y 
+              amazon-linux-extras install docker -y
+              systemctl start docker
+              systemctl enable docker
+              usermod -aG docker ubuntu
+              newgrp docker
+              curl -L "https://github.com/docker/compose/releases/download/1.26.2/docker-compose-$(uname -s)-$(uname -m)" \
+              -o /usr/bin/docker-compose
+              chmod +x /usr/bin/docker-compose
+              yum install python3-pip -y
+              pip3 install ec2instanceconnectcli
+              pip3 install mssh
+              docker swarm join --token $(mssh -r ${AWS::Region} ec2-user@{GrandMaster} docker swarm join-token manager | cut -d " " -f 9) ${GrandMaster.PrivateIp}:2377
+
+  WorkerLT:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: DockerManagerLaunchTemplate
+      LaunchTemplateData: 
+        ImageId: ami-0c94855ba95c71c99
+        InstanceType: t2.micro
+        KeyName: !Ref KeyPairName
+        IamInstanceProfile: !Ref EC2ConnectandECRProfile
+        SecurityGroupIds:
+          - !GetAtt SwarmSecurityGroup.GroupId
+        UserData: 
+          Fn::Base64: 
+            !Sub |
+              #! /bin/bash
+              yum update -y
+              amazon-linux-extras install docker -y
+              systemctl start docker
+              systemctl enable docker
+              usermod -aG docker ubuntu
+              newgrp docker
+              curl -L "https://github.com/docker/compose/releases/download/1.26.2/docker-compose-$(uname -s)-$(uname -m)" \
+              -o /usr/bin/docker-compose
+              chmod +x /usr/bin/docker-compose
+              yum install python3-pip -y
+              pip3 install ec2instanceconnectcli
+              pip3 install mssh
+              docker swarm join --token $(mssh -r ${AWS::Region} ec2-user@{GrandMaster} docker swarm join-token worker | cut -d " " -f 9) ${GrandMaster.PrivateIp}:2377
+
+  DockerWorker1:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - GrandMaster
+    Properties:
+      LaunchTemplate:
+        Version: 1
+        LaunchTemplateId: !Ref WorkerLT
+      Tags:                
+        -                        
+          Key: Name
+          Value: !Sub Worker1 of ${AWS::StackName}
+      
+Outputs:
+  1stKubeMasterPublicDNSName:
+    Description: Kube Master 1st Public DNS Name
+    Value: !Sub 
+      - ${PublicAddress}
+      - PublicAddress: !GetAtt KubeMaster1.PublicDnsName
+  1stKubeMasterPrivateDNSName:
+    Description: Kube Master 1st Private DNS Name
+    Value: !Sub 
+      - ${PrivateAddress}
+      - PrivateAddress: !GetAtt KubeMaster1.PrivateDnsName
+  1stKubeWorkerPublicDNSName:
+    Description: Kube Worker 1st Public DNS Name
+    Value: !Sub 
+      - ${PublicAddress}
+      - PublicAddress: !GetAtt KubeWorker1.PublicDnsName
+  1stKubeWorkerPrivateDNSName:
+    Description: Kube Worker 1st Private DNS Name
+    Value: !Sub 
+      - ${PrivateAddress}
+      - PrivateAddress: !GetAtt KubeWorker1.PrivateDnsName

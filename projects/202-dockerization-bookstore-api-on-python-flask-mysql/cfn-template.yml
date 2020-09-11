@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  Bookstore Web API Application aims to create a bookstore web service using Docker to give students the understanding to dockerization of an application. The application code is to be deployed as a RESTful web service with Flask using Dockerfile and Docker Compose on AWS Elastic Compute Cloud (EC2) Instance using AWS Cloudformation Service.
+Parameters:
+  KeyPairName:
+    Description: Enter the name of Key Pair for SSH
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: Must be one of the existing KeyPairs
+
+Resources:
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP and SSH
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+  
+  WebServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      KeyName: !Ref KeyPairName
+      ImageId: ami-0c94855ba95c71c99
+      InstanceType: t2.micro
+      SecurityGroupIds:
+        - !Ref WebServerSecurityGroup
+      UserData: !Base64 |
+        #!/bin/bash 
+        yum update -y
+        amazon-linux-extras install docker -y
+        systemctl start docker
+        systemctl enable docker
+        usermod -a -G docker ec2-user
+        curl -L "https://github.com/docker/compose/releases/download/1.26.2/docker-compose-$(uname -s)-$(uname -m)" \
+        -o /usr/bin/docker-compose
+        chmod +x /usr/bin/docker-compose
+        FOLDER="https://raw.githubusercontent.com/mucahit-k/devops-projects/master/projects/202-dockerization-bookstore-api-on-python-flask-mysql/"
+        curl -s --create-dirs -o "/home/ec2-user/bookstore-api/Dockerfile" -L "$FOLDER"Dockerfile
+        curl -s --create-dirs -o "/home/ec2-user/bookstore-api/docker-compose.yml" -L "$FOLDER"docker-compose.yml
+        curl -s --create-dirs -o "/home/ec2-user/bookstore-api/bookstore-api.py" -L "$FOLDER"bookstore-api.py
+        curl -s --create-dirs -o "/home/ec2-user/bookstore-api/requirements.txt" -L "$FOLDER"requirements.txt
+        cd /home/ec2-user/bookstore-api
+        docker build -t koca/bookstore-api:latest .
+        docker-compose up -d
+      Tags:
+        - Key: Name
+          Value: !Sub Project 202 Webserver of ${AWS::StackName}
+
+Outputs:
+  WebsiteURL:
+    Description: Bookstore Web Api URL
+    Value: !Sub 
+      - http://${PublicAddress}
+      - PublicAddress: !GetAtt WebServer.PublicDnsName
