@@ -78,6 +78,14 @@ Resources:
           FromPort: 2377
           ToPort: 2377
           CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 7946
+          ToPort: 7946
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: udp
+          FromPort: 7946
+          ToPort: 7946
+          CidrIp: 0.0.0.0/0
 
   SwarmSGIngress1:
     Type: "AWS::EC2::SecurityGroupIngress"
@@ -129,7 +137,10 @@ Resources:
             https://github.com/mucahit-k/devops-projects.git#:projects/203-docker-swarm-deployment-of-phonebook-app-on-python-flask-mysql
             aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com"
             docker push "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/mucahit-k/phonebook-app:latest"
-
+            FOLDER="https://raw.githubusercontent.com/mucahit-k/devops-projects/master/projects/203-docker-swarm-deployment-of-phonebook-app-on-python-flask-mysql/"
+            curl -s --create-dirs -o "/home/ec2-user/phonebook-app/init.sql" -L "$FOLDER"init.sql
+            curl -s --create-dirs -o "/home/ec2-user/phonebook-app/docker-compose.yml" -L "$FOLDER"docker-compose.yml
+            docker stack deploy -f ./docker-compose.yml
 
 
   ManagerLT:
@@ -164,7 +175,7 @@ Resources:
   WorkerLT:
     Type: AWS::EC2::LaunchTemplate
     Properties:
-      LaunchTemplateName: DockerManagerLaunchTemplate
+      LaunchTemplateName: DockerWorkerLaunchTemplate
       LaunchTemplateData: 
         ImageId: ami-0c94855ba95c71c99
         InstanceType: t2.micro
@@ -190,6 +201,32 @@ Resources:
               pip3 install mssh
               docker swarm join --token $(mssh -r ${AWS::Region} ec2-user@{GrandMaster} docker swarm join-token worker | cut -d " " -f 9) ${GrandMaster.PrivateIp}:2377
 
+  DockerManager2:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - GrandMaster
+    Properties:
+      LaunchTemplate:
+        Version: 1
+        LaunchTemplateId: !Ref ManagerLT
+      Tags:                
+        -                        
+          Key: Name
+          Value: !Sub Manager2 of ${AWS::StackName}
+  
+  DockerManager3:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - GrandMaster
+    Properties:
+      LaunchTemplate:
+        Version: 1
+        LaunchTemplateId: !Ref ManagerLT
+      Tags:                
+        -                        
+          Key: Name
+          Value: !Sub Manager3 of ${AWS::StackName}
+  
   DockerWorker1:
     Type: AWS::EC2::Instance
     DependsOn:
@@ -202,25 +239,28 @@ Resources:
         -                        
           Key: Name
           Value: !Sub Worker1 of ${AWS::StackName}
+  
+  DockerWorker2:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - GrandMaster
+    Properties:
+      LaunchTemplate:
+        Version: 1
+        LaunchTemplateId: !Ref WorkerLT
+      Tags:                
+        -                        
+          Key: Name
+          Value: !Sub Worker2 of ${AWS::StackName}
       
 Outputs:
-  1stKubeMasterPublicDNSName:
-    Description: Kube Master 1st Public DNS Name
+  PhonebookAppWebsiteURL:
+    Description: Phonebook app URL
     Value: !Sub 
-      - ${PublicAddress}
-      - PublicAddress: !GetAtt KubeMaster1.PublicDnsName
-  1stKubeMasterPrivateDNSName:
-    Description: Kube Master 1st Private DNS Name
+      - http://${PublicAddress}
+      - PublicAddress: !GetAtt GrandMaster.PublicDnsName
+  VisualizationAppWebsiteURL:
+    Description: Visualization app URL
     Value: !Sub 
-      - ${PrivateAddress}
-      - PrivateAddress: !GetAtt KubeMaster1.PrivateDnsName
-  1stKubeWorkerPublicDNSName:
-    Description: Kube Worker 1st Public DNS Name
-    Value: !Sub 
-      - ${PublicAddress}
-      - PublicAddress: !GetAtt KubeWorker1.PublicDnsName
-  1stKubeWorkerPrivateDNSName:
-    Description: Kube Worker 1st Private DNS Name
-    Value: !Sub 
-      - ${PrivateAddress}
-      - PrivateAddress: !GetAtt KubeWorker1.PrivateDnsName
+      - http://${PublicAddress}:8080
+      - PublicAddress: !GetAtt GrandMaster.PublicDnsName
