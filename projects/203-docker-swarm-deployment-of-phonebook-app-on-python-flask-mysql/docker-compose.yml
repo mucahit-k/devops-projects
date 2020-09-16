@@ -3,17 +3,16 @@ version: "3.7"
 services:
     database: 
         image: mysql:5.7
+        restart: always
         environment:
             MYSQL_DATABASE: phonebook_db
             MYSQL_ROOT_PASSWORD: P123456p
-            MYSQL_USER: clarusway
+            MYSQL_USER: admin
             MYSQL_PASSWORD: Clarusway_1
         command: --init-file /data/application/init.sql
         volumes:
           - ./init.sql:/data/application/init.sql
-          - my-db:/var/lib/mysql
-        networks:
-            - clarusnet
+
     my-app:
         image: 331210975209.dkr.ecr.us-east-1.amazonaws.com/mucahit-k/phonebook-app:latest
         restart: always
@@ -23,10 +22,5 @@ services:
           mode: global 
         ports:
             - "80:80"
-        networks:
-            - clarusnet
-volumes:
-  my-db:
-networks:
-    clarusnet:
-        driver: overlay
+
+
