@@ -74,6 +74,10 @@ Resources:
           FromPort: 7946
           ToPort: 7946
           CidrIp: 0.0.0.0/0
+        - IpProtocol: udp
+          FromPort: 4789
+          ToPort: 4789
+          CidrIp: 0.0.0.0/0
 
   SwarmSGIngress1:
     Type: "AWS::EC2::SecurityGroupIngress"
@@ -125,7 +129,13 @@ Resources:
             curl -s --create-dirs -o "/home/ec2-user/phonebook-app/init.sql" -L "$FOLDER"init.sql
             curl -s --create-dirs -o "/home/ec2-user/phonebook-app/docker-compose.yml" -L "$FOLDER"docker-compose.yml
             docker stack deploy -c /home/ec2-user/phonebook-app/docker-compose.yml phonebook-app
-
+            yum install amazon-ecr-credential-helper -y
+            mkdir -p /home/ec2-user/.docker
+            cd /home/ec2-user/.docker
+            echo '{"credsStore": "ecr-login"}' > config.json
+          - ECR_REGISTRY: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+            APP_REPO_NAME: mucahit-k/phonebook-app
+            GITHUB_REPO: https://github.com/mucahit-k/devops-projects.git#:projects/203-docker-swarm-deployment-of-phonebook-app-on-python-flask-mysql
 
   ManagerLT:
     Type: AWS::EC2::LaunchTemplate
@@ -155,6 +165,10 @@ Resources:
               yum install python3-pip -y
               pip3 install ec2instanceconnectcli
               docker swarm join --token $(mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -r ${AWS::Region} ec2-user@${GrandMaster} docker swarm join-token manager | awk 'NR == 3 {print $5}') ${GrandMaster.PrivateIp}:2377
+              yum install amazon-ecr-credential-helper -y
+              mkdir -p /home/ec2-user/.docker
+              cd /home/ec2-user/.docker
+              echo '{"credsStore": "ecr-login"}' > config.json
 
   WorkerLT:
     Type: AWS::EC2::LaunchTemplate
@@ -184,14 +198,18 @@ Resources:
               yum install python3-pip -y
               pip3 install ec2instanceconnectcli
               docker swarm join --token $(mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -r ${AWS::Region} ec2-user@${GrandMaster} docker swarm join-token worker | awk 'NR == 3 {print $5}') ${GrandMaster.PrivateIp}:2377
-
+              yum install amazon-ecr-credential-helper -y
+              mkdir -p /home/ec2-user/.docker
+              cd /home/ec2-user/.docker
+              echo '{"credsStore": "ecr-login"}' > config.json
+              
   DockerManager2:
     Type: AWS::EC2::Instance
     DependsOn:
       - GrandMaster
     Properties:
       LaunchTemplate:
-        Version: 1
+        Version: !GetAtt ManagerLT.LatestVersionNumber
         LaunchTemplateId: !Ref ManagerLT
       Tags:                
         -                        
@@ -204,7 +222,7 @@ Resources:
       - GrandMaster
     Properties:
       LaunchTemplate:
-        Version: 1
+        Version: !GetAtt ManagerLT.LatestVersionNumber
         LaunchTemplateId: !Ref ManagerLT
       Tags:                
         -                        
@@ -217,7 +235,7 @@ Resources:
       - GrandMaster
     Properties:
       LaunchTemplate:
-        Version: 1
+        Version: !GetAtt WorkerLT.LatestVersionNumber
         LaunchTemplateId: !Ref WorkerLT
       Tags:                
         -                        
@@ -230,7 +248,7 @@ Resources:
       - GrandMaster
     Properties:
       LaunchTemplate:
-        Version: 1
+        Version: !GetAtt WorkerLT.LatestVersionNumber
         LaunchTemplateId: !Ref WorkerLT
       Tags:                
         -                        

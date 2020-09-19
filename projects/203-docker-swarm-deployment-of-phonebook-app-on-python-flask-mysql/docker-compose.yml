@@ -9,9 +9,12 @@ services:
             MYSQL_ROOT_PASSWORD: P123456p
             MYSQL_USER: admin
             MYSQL_PASSWORD: Clarusway_1
-        command: --init-file /data/application/init.sql
         volumes:
-          - ./init.sql:/data/application/init.sql
+            - ./mysql-init/init.sql:/docker-entrypoint-initdb.d/init.sql
+            - my-data:/var/lib/mysql
+        networks:
+            - clarusnet
+
 
     my-app:
         image: 331210975209.dkr.ecr.us-east-1.amazonaws.com/mucahit-k/phonebook-app:latest
@@ -22,5 +25,13 @@ services:
           mode: global 
         ports:
             - "80:80"
+        networks:
+            - clarusnet
+networks:
+  clarusnet:
+    driver: overlay
+volumes:
+  my-data:
+ 
 
 
