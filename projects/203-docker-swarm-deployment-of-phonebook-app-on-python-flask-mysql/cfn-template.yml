@@ -101,7 +101,8 @@ Resources:
           Value: !Sub Grand Master of ${AWS::StackName}
       UserData: 
         Fn::Base64: 
-          !Sub |
+          !Sub 
+          - |
             #! /bin/bash
             yum update -y
             hostnamectl set-hostname Grand-Master
@@ -113,13 +114,13 @@ Resources:
             curl -L "https://github.com/docker/compose/releases/download/1.26.2/docker-compose-$(uname -s)-$(uname -m)" \
             -o /usr/local/bin/docker-compose
             chmod +x /usr/local/bin/docker-compose
+            docker swarm init
+            docker service create --name=viz --publish=8080:8080/tcp --constraint=node.role==manager --mount=type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+            dockersamples/visualizer
             curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
             unzip awscliv2.zip
             ./aws/install
             yum install git -y
-            docker swarm init
-            docker service create --name=viz --publish=8080:8080/tcp --constraint=node.role==manager --mount=type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
-            dockersamples/visualizer
             aws ecr create-repository --repository-name mucahit-k/phonebook-app
             docker build -t "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/mucahit-k/phonebook-app:latest" \
             https://github.com/mucahit-k/devops-projects.git#:projects/203-docker-swarm-deployment-of-phonebook-app-on-python-flask-mysql
