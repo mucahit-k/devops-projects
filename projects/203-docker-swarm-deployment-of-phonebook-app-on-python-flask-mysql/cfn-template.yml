@@ -126,14 +126,14 @@ Resources:
             https://github.com/mucahit-k/devops-projects.git#:projects/203-docker-swarm-deployment-of-phonebook-app-on-python-flask-mysql
             aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com"
             docker push "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/mucahit-k/phonebook-app:latest"
-            FOLDER="https://raw.githubusercontent.com/mucahit-k/devops-projects/master/projects/203-docker-swarm-deployment-of-phonebook-app-on-python-flask-mysql/"
-            curl -s --create-dirs -o "/home/ec2-user/phonebook-app/init.sql" -L "$FOLDER"init.sql
-            curl -s --create-dirs -o "/home/ec2-user/phonebook-app/docker-compose.yml" -L "$FOLDER"docker-compose.yml
-            docker stack deploy -c /home/ec2-user/phonebook-app/docker-compose.yml phonebook-app
             yum install amazon-ecr-credential-helper -y
             mkdir -p /home/ec2-user/.docker
             cd /home/ec2-user/.docker
             echo '{"credsStore": "ecr-login"}' > config.json
+            FOLDER="https://raw.githubusercontent.com/mucahit-k/devops-projects/master/projects/203-docker-swarm-deployment-of-phonebook-app-on-python-flask-mysql/"
+            curl -s --create-dirs -o "/home/ec2-user/phonebook-app/init.sql" -L "$FOLDER"init.sql
+            curl -s --create-dirs -o "/home/ec2-user/phonebook-app/docker-compose.yml" -L "$FOLDER"docker-compose.yml
+            docker stack deploy -c /home/ec2-user/phonebook-app/docker-compose.yml phonebook-app
           - ECR_REGISTRY: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
             APP_REPO_NAME: mucahit-k/phonebook-app
             GITHUB_REPO: https://github.com/mucahit-k/devops-projects.git#:projects/203-docker-swarm-deployment-of-phonebook-app-on-python-flask-mysql
