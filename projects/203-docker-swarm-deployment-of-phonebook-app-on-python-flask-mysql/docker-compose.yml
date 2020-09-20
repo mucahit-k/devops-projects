@@ -23,9 +23,9 @@ services:
     deploy:
       mode: global
       update_config:
-          parallelism: 2
-          delay: 5s
-          order: start-first
+        parallelism: 2
+        delay: 5s
+        order: start-first
     ports:
       - "80:80"
     networks:
