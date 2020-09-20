@@ -122,22 +122,26 @@ Resources:
             ./aws/install
             yum install git -y
             aws ecr create-repository --repository-name mucahit-k/phonebook-app
-            docker build -t "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/mucahit-k/phonebook-app:latest" \
-            https://github.com/mucahit-k/devops-projects.git#:projects/203-docker-swarm-deployment-of-phonebook-app-on-python-flask-mysql
+            docker build --force-rm -t "${ECR_REGISTRY}/${APP_REPO_NAME}:latest" ${GITHUB_REPO}
             aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com"
-            docker push "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/mucahit-k/phonebook-app:latest"
+            docker push "${ECR_REGISTRY}/${APP_REPO_NAME}:latest"
             yum install amazon-ecr-credential-helper -y
             mkdir -p /home/ec2-user/.docker
             cd /home/ec2-user/.docker
             echo '{"credsStore": "ecr-login"}' > config.json
-            FOLDER="https://raw.githubusercontent.com/mucahit-k/devops-projects/master/projects/203-docker-swarm-deployment-of-phonebook-app-on-python-flask-mysql/"
-            curl -s --create-dirs -o "/home/ec2-user/phonebook-app/init.sql" -L "$FOLDER"init.sql
-            curl -s --create-dirs -o "/home/ec2-user/phonebook-app/docker-compose.yml" -L "$FOLDER"docker-compose.yml
+            mkdir -p /home/ec2-user/phonebook-app
+            cd /home/ec2-user/phonebook-app
+            curl -o "init.sql" -L ${GITHUB_FILE_URL}init.sql
+            curl -o "docker-compose.yml" -L ${GITHUB_FILE_URL}docker-compose.yml
+            cat << EOF | tee .env
+            ECR_REGISTRY=${ECR_REGISTRY}
+            APP_REPO_NAME=${APP_REPO_NAME}
+            EOF
             docker stack deploy -c /home/ec2-user/phonebook-app/docker-compose.yml phonebook-app
           - ECR_REGISTRY: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
             APP_REPO_NAME: mucahit-k/phonebook-app
             GITHUB_REPO: https://github.com/mucahit-k/devops-projects.git#:projects/203-docker-swarm-deployment-of-phonebook-app-on-python-flask-mysql
-
+            GITHUB_FILE_URL: https://raw.githubusercontent.com/mucahit-k/devops-projects/master/projects/203-docker-swarm-deployment-of-phonebook-app-on-python-flask-mysql/
   ManagerLT:
     Type: AWS::EC2::LaunchTemplate
     Properties:
@@ -152,7 +156,8 @@ Resources:
           - !GetAtt SwarmSecurityGroup.GroupId
         UserData: 
           Fn::Base64: 
-            !Sub |
+            !Sub 
+            - |
               #! /bin/bash
               yum update -y 
               amazon-linux-extras install docker -y
@@ -166,10 +171,16 @@ Resources:
               yum install python3-pip -y
               pip3 install ec2instanceconnectcli
               docker swarm join --token $(mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -r ${AWS::Region} ec2-user@${GrandMaster} docker swarm join-token manager | awk 'NR == 3 {print $5}') ${GrandMaster.PrivateIp}:2377
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip awscliv2.zip
+              ./aws/install
+              aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com"
               yum install amazon-ecr-credential-helper -y
               mkdir -p /home/ec2-user/.docker
               cd /home/ec2-user/.docker
               echo '{"credsStore": "ecr-login"}' > config.json
+            - ECR_REGISTRY: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+              APP_REPO_NAME: mucahit-k/phonebook-app
 
   WorkerLT:
     Type: AWS::EC2::LaunchTemplate
@@ -185,7 +196,8 @@ Resources:
           - !GetAtt SwarmSecurityGroup.GroupId
         UserData: 
           Fn::Base64: 
-            !Sub |
+            !Sub 
+            - |
               #! /bin/bash
               yum update -y
               amazon-linux-extras install docker -y
@@ -203,6 +215,17 @@ Resources:
               mkdir -p /home/ec2-user/.docker
               cd /home/ec2-user/.docker
               echo '{"credsStore": "ecr-login"}' > config.json
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip awscliv2.zip
+              ./aws/install
+              aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com"
+              yum install amazon-ecr-credential-helper -y
+              mkdir -p /home/ec2-user/.docker
+              cd /home/ec2-user/.docker
+              echo '{"credsStore": "ecr-login"}' > config.json
+            - ECR_REGISTRY: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+              APP_REPO_NAME: mucahit-k/phonebook-app
+
               
   DockerManager2:
     Type: AWS::EC2::Instance
