@@ -1,0 +1,105 @@
+pipeline {
+    agent {
+        label 'master'
+    }
+    environment {
+        APP_REPO_NAME="mucahit-k/phonebook-app"
+        AWS::Region="us-east-1"
+        AWS::AccountId="331210975209"
+        ECR_REGISTRY="${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com"
+        GITHUB_REPO=https://github.com/mucahit-k/devops-projects.git#:projects/204-jenkins-pipeline-for-phonebook-app-on-docker-swarm
+        GIT_FILE_URL=https://raw.githubusercontent.com/mucahit-k/devops-projects/master/projects/204-jenkins-pipeline-for-phonebook-app-on-docker-swarm/
+    }
+    stages {
+        stage('creating ECR Repo') {
+            steps {
+                sh """
+                aws ecr create-repository \
+                  --repository-name ${APP_REPO_NAME} \
+                  --image-scanning-configuration scanOnPush=false \
+                  --image-tag-mutability MUTABLE \
+                  --region us-east-1"""
+            }
+        }
+        stage('building Docker image') {
+            steps {
+                sh """
+                docker build --force-rm -t ${ECR_REGISTRY}/${APP_REPO_NAME}:latest ${GITHUB_REPO}/app
+                """
+            }
+        }
+        stage('pushing Docker image to ECR Repo') {
+            steps {
+                sh "aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${ECR_REGISTRY}"
+                sh "docker push ${ECR_REGISTRY}/${APP_REPO_NAME}:latest"
+            }
+        }
+        stage('creating infrastructure for the app') {
+            steps {
+                sh "aws cloudformation create-stack --stack-name phonebook --template-url ${GIT_FILE_URL}cfn-template.yml --parameters ParameterKey=KeyPairName,ParameterValue=new-key --capabilities CAPABILITY_IAM"
+                script {
+                    sleep(180)
+                    boolean condition = true ;
+                    while ( condition ) {
+                        ip = sh "aws ec2 describe-instances --filters Name=tag:Name,Values='Docker Grand Master' --query 'Reservations[*].Instances[*].PublicIpAddress' --output text" 
+                        if (ip.length > 7 ) {
+                            condition = false
+                            sleep(10);
+                        } else {
+                            sleep(10);
+                        }
+                    }
+                }
+            }
+        }
+        stage('test the Viz App') {
+            steps {
+                script {
+                    int counter = 0 ;
+                    while ( counter < 3 ) {
+                        println('Counting... ' +counter);
+                        sleep(2)
+                        counter++;
+                        //try catch block with groovy/java
+                        //sh 'curl ip:8080 ...' break
+                        //failure ... sleep(5)
+                    }
+                }
+            }
+        }
+        stage('deploying the application') {
+            steps {
+                echo 'deploying the application'
+                sh 'mssh .... git clone'
+                sh 'mssh .... docker stack deploy'
+            }
+        }
+        stage('test phonebook application') {
+            steps {
+                echo 'test phonebook application'
+                script {
+                    int counter = 0 ;
+                    while ( counter < 3 ) {
+                        println('Counting... ' +counter);
+                        sleep(2)
+                        counter++;
+                        //try catch block with groovy/java
+                        //sh 'curl ip:8080 ...' break
+                        //failure ... sleep(5)
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            echo 'Goodbye ALL... Please come back soon'
+        }
+        failure {
+            echo 'Sorry but you messed up...'
+        }
+        success { 
+            echo 'You are the man/woman...'
+        }
+    }
+}
