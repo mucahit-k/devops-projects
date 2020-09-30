@@ -24,7 +24,7 @@ pipeline {
         stage('building Docker image') {
             steps {
                 sh """
-                docker build --force-rm -t ${ECR_REGISTRY}/${APP_REPO_NAME}:latest ${GITHUB_REPO}/app
+                docker build --force-rm -t ${ECR_REGISTRY}/${APP_REPO_NAME}:latest ${GITHUB_REPO}
                 """
             }
         }
