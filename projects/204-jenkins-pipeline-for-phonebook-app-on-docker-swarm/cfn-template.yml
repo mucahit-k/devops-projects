@@ -20,7 +20,7 @@ Resources:
               - ec2-instance-connect:SendSSHPublicKey
             Resource:
               - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*
-            Condition: {"StringEquals": {"aws:ResourceTag/project":"203"}}
+            Condition: {"StringEquals": {"aws:ResourceTag/project":"204"}}
           - Effect: Allow
             Action:
               - ec2:DescribeInstances
@@ -154,7 +154,7 @@ Resources:
         - !GetAtt DockerSwarmSecurityGroup.GroupId
       Tags:
         - Key: Name
-          Value: Docker Grand Master
+          Value: !Sub Docker Grand Master of ${AWS::StackName}
         - Key: project
           Value: "204"
       UserData:
@@ -186,6 +186,12 @@ Resources:
               mkdir -p /home/ec2-user/.docker
               cd /home/ec2-user/.docker
               echo '{"credsStore": "ecr-login"}' > config.json
+              mkdir -p /home/ec2-user/phonebook
+              cd /home/ec2-user/phonebook
+              cat << EOF | tee .env
+              ECR_REGISTRY=${ECR_REGISTRY}
+              APP_REPO_NAME=${APP_REPO_NAME}
+              EOF
                
             - ECR_REGISTRY: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
               APP_REPO_NAME: mucahit-k/phonebook-app

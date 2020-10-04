@@ -35,6 +35,34 @@ Resources:
             Action:
               - ec2:DescribeInstances
             Resource: "*"
+  EC2andIAMPolicy:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      PolicyDocument: #required
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - iam:AddRoleToInstanceProfile
+              - iam:CreateInstanceProfile
+              - iam:CreatePolicy
+              - iam:CreateRole
+              - iam:DeleteInstanceProfile
+              - iam:DeletePolicy
+              - iam:DeleteRole
+              - iam:GetPolicy
+              - iam:GetRole
+              - iam:ListPolicyVersions 
+              - iam:AttachRolePolicy
+              - iam:DetachRolePolicy
+              - iam:PassRole
+              - iam:RemoveRoleFromInstanceProfile
+              - iam:GetInstanceProfile
+            Resource: "*"  
+          - Effect: Allow
+            Action:
+              - ec2:*
+            Resource: "*"
   EC2InstanceConnect:
     Type: "AWS::IAM::Role"
     Properties:
@@ -48,6 +76,7 @@ Resources:
               - 'sts:AssumeRole'
       ManagedPolicyArns:
         - !Ref InstanceConnectPolicy
+        - !Ref EC2andIAMPolicy
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
         - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
   EC2ConnectProfile:

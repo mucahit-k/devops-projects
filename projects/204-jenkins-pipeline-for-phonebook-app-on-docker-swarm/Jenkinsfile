@@ -4,11 +4,11 @@ pipeline {
     }
     environment {
         APP_REPO_NAME="mucahit-k/phonebook-app"
-        AWS::Region="us-east-1"
-        AWS::AccountId="331210975209"
-        ECR_REGISTRY="${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com"
-        GITHUB_REPO=https://github.com/mucahit-k/devops-projects.git#:projects/204-jenkins-pipeline-for-phonebook-app-on-docker-swarm
-        GIT_FILE_URL=https://raw.githubusercontent.com/mucahit-k/devops-projects/master/projects/204-jenkins-pipeline-for-phonebook-app-on-docker-swarm/
+        AWS_REGION="us-east-1"
+        STACK_NAME="phonebook"
+        ECR_REGISTRY="331210975209.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        GITHUB_REPO="https://github.com/mucahit-k/devops-projects.git#:projects/204-jenkins-pipeline-for-phonebook-app-on-docker-swarm"
+        GIT_FILE_URL="https://raw.githubusercontent.com/mucahit-k/devops-projects/master/projects/204-jenkins-pipeline-for-phonebook-app-on-docker-swarm/"
     }
     stages {
         stage('creating ECR Repo') {
@@ -18,7 +18,7 @@ pipeline {
                   --repository-name ${APP_REPO_NAME} \
                   --image-scanning-configuration scanOnPush=false \
                   --image-tag-mutability MUTABLE \
-                  --region us-east-1"""
+                  --region ${AWS_REGION}"""
             }
         }
         stage('building Docker image') {
@@ -30,18 +30,18 @@ pipeline {
         }
         stage('pushing Docker image to ECR Repo') {
             steps {
-                sh "aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${ECR_REGISTRY}"
+                sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}"
                 sh "docker push ${ECR_REGISTRY}/${APP_REPO_NAME}:latest"
             }
         }
         stage('creating infrastructure for the app') {
             steps {
-                sh "aws cloudformation create-stack --stack-name phonebook --template-url ${GIT_FILE_URL}cfn-template.yml --parameters ParameterKey=KeyPairName,ParameterValue=new-key --capabilities CAPABILITY_IAM"
+                sh "aws cloudformation create-stack --stack-name ${STACK_NAME} --region ${AWS_REGION} --template-url https://test-cloudfront-cw.s3.amazonaws.com/cfn-template.yml --parameters ParameterKey=KeyPairName,ParameterValue=new-key --capabilities CAPABILITY_IAM"
                 script {
-                    sleep(180)
+                    sleep(150)
                     boolean condition = true ;
-                    while ( condition ) {
-                        ip = sh "aws ec2 describe-instances --filters Name=tag:Name,Values='Docker Grand Master' --query 'Reservations[*].Instances[*].PublicIpAddress' --output text" 
+                    while ( condition == true ) {
+                        ip = sh "aws ec2 describe-instances --filters Name=tag:Name,Values='Docker Grand Master of ${STACK_NAME}' --query 'Reservations[*].Instances[*].PublicIpAddress' --output text" 
                         if (ip.length > 7 ) {
                             condition = false
                             sleep(10);
@@ -70,8 +70,8 @@ pipeline {
         stage('deploying the application') {
             steps {
                 echo 'deploying the application'
-                sh 'mssh .... git clone'
-                sh 'mssh .... docker stack deploy'
+                //sh 'mssh .... git clone'
+                //sh 'mssh .... docker stack deploy'
             }
         }
         stage('test phonebook application') {
@@ -93,10 +93,14 @@ pipeline {
     }
     post {
         always {
-            echo 'Goodbye ALL... Please come back soon'
+            sh "docker image rm ${ECR_REGISTRY}/${APP_REPO_NAME}:latest"
         }
         failure {
-            echo 'Sorry but you messed up...'
+            sh """
+                aws ecr delete-repository \
+                  --repository-name ${APP_REPO_NAME} \
+                  --force --region ${AWS_REGION}
+                aws cloudformation delete-stack --stack-name ${STACK_NAME} --region ${AWS_REGION}"""
         }
         success { 
             echo 'You are the man/woman...'
