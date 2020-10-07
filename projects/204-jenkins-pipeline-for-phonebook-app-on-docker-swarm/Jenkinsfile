@@ -44,12 +44,10 @@ pipeline {
                 sh "aws cloudformation create-stack --stack-name ${STACK_NAME} --region ${AWS_REGION} --template-body file://cfn-template.yml --parameters ParameterKey=KeyPairName,ParameterValue=${CFN_KEYPAIR} --capabilities CAPABILITY_IAM"
                 script {
                     sleep(150)
-                    boolean condition = true ;
-                    while ( condition == true ) {
-                        ip = sh "aws ec2 describe-instances --filters Name=tag:Name,Values='Docker Grand Master of ${STACK_NAME}' --region ${AWS_REGION} --query 'Reservations[*].Instances[*].PublicIpAddress' --output text" 
-                        if (ip.length > 7 ) {
+                    while ( true ) {
+                        ip = sh(script: 'aws ec2 describe-instances --filters Name=tag:Name,Values="Docker Grand Master of ${STACK_NAME}" --region ${AWS_REGION} --query Reservations[*].Instances[*].PublicIpAddress --output text | sed "s/\\s*None\\s*//g"', returnStdout:true).trim()
+                        if (ip.length() >= 7 ) {
                             env.MASTER_INSTANCE_PUBLIC_IP = "$ip"
-                            condition = false
                             sleep(10);
                         } else {
                             sleep(10);
