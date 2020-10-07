@@ -90,8 +90,8 @@ pipeline {
                 APP_REPO_NAME=${APP_REPO_NAME}
                 EOF
                 """
-                sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} curl -o "docker-compose.yml" -L ${GIT_FILE_URL}docker-compose.yml"
-                sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} curl -o "init.sql" -L ${GIT_FILE_URL}init.sql"
+                sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} curl -o 'docker-compose.yml' -L ${GIT_FILE_URL}docker-compose.yml"
+                sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} curl -o 'init.sql' -L ${GIT_FILE_URL}init.sql"
                 sleep(10)
                 sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} docker stack deploy --with-registry-auth -c /home/ec2-user/phonebook/docker-compose.yml ${STACK_NAME}"
             }
