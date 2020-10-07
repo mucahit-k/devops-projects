@@ -78,7 +78,7 @@ pipeline {
         }
         stage('deploying the application') {
             environment {
-                Master_instance_ID = sh "aws ec2 describe-instances --filters Name=tag:Name,Values='Docker Grand Master of ${STACK_NAME}' --region ${AWS_REGION} --query 'Reservations[*].Instances[*].InstanceId' --output text"
+                MASTER_INSTANCE_ID = sh "aws ec2 describe-instances --filters Name=tag:Name,Values='Docker Grand Master of ${STACK_NAME}' --region ${AWS_REGION} --query 'Reservations[*].Instances[*].InstanceId' --output text"
             }
             steps {
                 echo "Cloning and Deploying App on Swarm using Grand Master with Instance Id: ${MASTER_INSTANCE_ID}"
