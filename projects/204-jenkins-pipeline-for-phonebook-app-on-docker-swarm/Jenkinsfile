@@ -84,9 +84,8 @@ pipeline {
             steps {
                 echo "Cloning and Deploying App on Swarm using Grand Master with Instance Id: ${MASTER_INSTANCE_ID}"
                 sh """
-                mkdir -p /home/ec2-user/phonebook
-                cd /home/ec2-user/phonebook
-                cat << EOF | tee .env
+                mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID}
+                mkdir -p /home/ec2-user/phonebook && cd /home/ec2-user/phonebook && cat << EOF | tee .env
                 ECR_REGISTRY=${ECR_REGISTRY}
                 APP_REPO_NAME=${APP_REPO_NAME}
                 EOF
