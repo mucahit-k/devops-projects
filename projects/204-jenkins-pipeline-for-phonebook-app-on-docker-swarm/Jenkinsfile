@@ -40,6 +40,7 @@ pipeline {
         stage('creating infrastructure for the app') {
             steps {
                 echo 'Creating Docker Swarm'
+                sh "curl -o 'cfn-template.yml' -L ${GIT_FILE_URL}cfn-template.yml"
                 sh "aws cloudformation create-stack --stack-name ${STACK_NAME} --region ${AWS_REGION} --template-body file://cfn-template.yml --parameters ParameterKey=KeyPairName,ParameterValue=${CFN_KEYPAIR} --capabilities CAPABILITY_IAM"
                 script {
                     sleep(150)
