@@ -83,14 +83,8 @@ pipeline {
             }
             steps {
                 echo "Cloning and Deploying App on Swarm using Grand Master with Instance Id: ${MASTER_INSTANCE_ID}"
-                sh """
-                mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ec2-user@${MASTER_INSTANCE_ID} mkdir -p /home/ec2-user/phonebook && cd /home/ec2-user/phonebook && cat << EOF | tee .env
-                ECR_REGISTRY=${ECR_REGISTRY}
-                APP_REPO_NAME=${APP_REPO_NAME}
-                EOF
-                """
-                sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} curl -o 'docker-compose.yml' -L ${GIT_FILE_URL}docker-compose.yml"
-                sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} curl -o 'init.sql' -L ${GIT_FILE_URL}init.sql"
+                sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} curl -o '/home/ec2-user/phonebook/docker-compose.yml' -L ${GIT_FILE_URL}docker-compose.yml"
+                sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} curl -o '/home/ec2-user/phonebook/init.sql' -L ${GIT_FILE_URL}init.sql"
                 sleep(10)
                 sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} docker stack deploy --with-registry-auth -c /home/ec2-user/phonebook/docker-compose.yml ${STACK_NAME}"
             }

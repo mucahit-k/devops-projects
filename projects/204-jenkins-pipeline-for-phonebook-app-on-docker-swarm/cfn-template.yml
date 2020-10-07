@@ -159,33 +159,42 @@ Resources:
           Value: "204"
       UserData:
         Fn::Base64: 
-          !Sub |
-            #! /bin/bash
-            yum update -y
-            hostnamectl set-hostname Grand-Master
-            amazon-linux-extras install docker -y
-            systemctl start docker
-            systemctl enable docker
-            usermod -a -G docker ec2-user
-            curl -L "https://github.com/docker/compose/releases/download/1.26.2/docker-compose-$(uname -s)-$(uname -m)" \
-            -o /usr/local/bin/docker-compose
-            chmod +x /usr/local/bin/docker-compose
-            docker swarm init
-            docker service create \
-              --name=viz \
-              --publish=8080:8080/tcp \
-              --constraint=node.role==manager \
-              --mount=type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
-              dockersamples/visualizer
-            yum install git -y
-            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-            unzip awscliv2.zip
-            ./aws/install
-            yum install amazon-ecr-credential-helper -y
-            mkdir -p /home/ec2-user/.docker
-            cd /home/ec2-user/.docker
-            echo '{"credsStore": "ecr-login"}' > config.json
-
+          !Sub 
+            - |
+              #! /bin/bash
+              yum update -y
+              hostnamectl set-hostname Grand-Master
+              amazon-linux-extras install docker -y
+              systemctl start docker
+              systemctl enable docker
+              usermod -a -G docker ec2-user
+              curl -L "https://github.com/docker/compose/releases/download/1.26.2/docker-compose-$(uname -s)-$(uname -m)" \
+              -o /usr/local/bin/docker-compose
+              chmod +x /usr/local/bin/docker-compose
+              docker swarm init
+              docker service create \
+                --name=viz \
+                --publish=8080:8080/tcp \
+                --constraint=node.role==manager \
+                --mount=type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+                dockersamples/visualizer
+              yum install git -y
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip awscliv2.zip
+              ./aws/install
+              yum install amazon-ecr-credential-helper -y
+              mkdir -p /home/ec2-user/.docker
+              cd /home/ec2-user/.docker
+              echo '{"credsStore": "ecr-login"}' > config.json
+              mkdir -p /home/ec2-user/phonebook
+              cd /home/ec2-user/phonebook
+              cat << EOF | tee .env
+              ECR_REGISTRY=${ECR_REGISTRY}
+              APP_REPO_NAME=${APP_REPO_NAME}
+              EOF
+               
+            - ECR_REGISTRY: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+              APP_REPO_NAME: mucahit-k/phonebook-app
 
   DockerManager2:
     Type: "AWS::EC2::Instance"
