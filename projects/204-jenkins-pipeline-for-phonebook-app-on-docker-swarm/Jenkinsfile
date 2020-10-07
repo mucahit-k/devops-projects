@@ -44,14 +44,16 @@ pipeline {
                 sh "aws cloudformation create-stack --stack-name ${STACK_NAME} --region ${AWS_REGION} --template-body file://cfn-template.yml --parameters ParameterKey=KeyPairName,ParameterValue=${CFN_KEYPAIR} --capabilities CAPABILITY_IAM"
                 script {
                     sleep(150)
-                    while ( true ) {
-                        ip = sh(script: 'aws ec2 describe-instances --filters Name=tag:Name,Values="Docker Grand Master of ${STACK_NAME}" --region ${AWS_REGION} --query Reservations[*].Instances[*].PublicIpAddress --output text | sed "s/\\s*None\\s*//g"', returnStdout:true).trim()
-                        if (ip.length() >= 7 ) {
+                    while(true){
+                        echo "Docker Grand Master is not UP and running yet. Will try to reach again after 10 seconds"
+                        sleep(10)
+                        ip = sh(script:'aws ec2 describe-instances --region ${AWS_REGION} --filters Name=tag:Name,Values="Docker Grand Master of ${STACK_NAME}" --query Reservations[*].Instances[*].[PublicIpAddress] --output text | sed "s/\\s*None\\s*//g"', returnStdout:true).trim()
+
+                        if (ip.length() >= 7) {
+                            echo "Docker Grand Master Public IP Address Found: $ip"
                             env.MASTER_INSTANCE_PUBLIC_IP = "$ip"
-                            sleep(10);
-                        } else {
-                            sleep(10);
-                        }
+                            break
+                        } 
                     }
                 }
             }
@@ -77,7 +79,7 @@ pipeline {
         }
         stage('deploying the application') {
             environment {
-                MASTER_INSTANCE_ID = sh "aws ec2 describe-instances --filters Name=tag:Name,Values='Docker Grand Master of ${STACK_NAME}' --region ${AWS_REGION} --query 'Reservations[*].Instances[*].InstanceId' --output text"
+                MASTER_INSTANCE_ID = sh(script:"aws ec2 describe-instances --region ${AWS_REGION} --filters Name=tag:Name,Values='Docker Grand Master of ${STACK_NAME}' --query Reservations[*].Instances[*].[InstanceId] --output text", returnStdout:true).trim()
             }
             steps {
                 echo "Cloning and Deploying App on Swarm using Grand Master with Instance Id: ${MASTER_INSTANCE_ID}"
