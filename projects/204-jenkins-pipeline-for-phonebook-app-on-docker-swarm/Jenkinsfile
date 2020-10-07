@@ -5,7 +5,7 @@ pipeline {
     environment {
         APP_REPO_NAME="mucahit-k/phonebook-app"
         AWS_REGION="us-east-1"
-        STACK_NAME="phonebook"
+        STACK_NAME="phonebook-${BUILD_NUMBER}"
         ECR_REGISTRY="331210975209.dkr.ecr.${AWS_REGION}.amazonaws.com"
         CFN_KEYPAIR="new-key"
         GITHUB_REPO="https://github.com/mucahit-k/devops-projects.git#:projects/204-jenkins-pipeline-for-phonebook-app-on-docker-swarm"
