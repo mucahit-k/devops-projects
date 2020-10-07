@@ -13,7 +13,7 @@ services:
     networks:
       - clarusnet
     configs:
-      - source: initialdb
+      - source: table
         target: /docker-entrypoint-initdb.d/init.sql
 
   app-server:

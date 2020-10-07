@@ -7,12 +7,14 @@ pipeline {
         AWS_REGION="us-east-1"
         STACK_NAME="phonebook"
         ECR_REGISTRY="331210975209.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        CFN_KEYPAIR="new-key"
         GITHUB_REPO="https://github.com/mucahit-k/devops-projects.git#:projects/204-jenkins-pipeline-for-phonebook-app-on-docker-swarm"
         GIT_FILE_URL="https://raw.githubusercontent.com/mucahit-k/devops-projects/master/projects/204-jenkins-pipeline-for-phonebook-app-on-docker-swarm/"
     }
     stages {
         stage('creating ECR Repo') {
             steps {
+                echo 'Creating ECR Repository'
                 sh """
                 aws ecr create-repository \
                   --repository-name ${APP_REPO_NAME} \
@@ -23,26 +25,29 @@ pipeline {
         }
         stage('building Docker image') {
             steps {
-                sh """
-                docker build --force-rm -t ${ECR_REGISTRY}/${APP_REPO_NAME}:latest ${GITHUB_REPO}
-                """
+                echo 'Building app Docker image'
+                sh "docker build --force-rm -t ${ECR_REGISTRY}/${APP_REPO_NAME}:latest ${GITHUB_REPO}"
+                sh "docker image ls"
             }
         }
         stage('pushing Docker image to ECR Repo') {
             steps {
+                echo 'Pushing images to ECR'
                 sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}"
                 sh "docker push ${ECR_REGISTRY}/${APP_REPO_NAME}:latest"
             }
         }
         stage('creating infrastructure for the app') {
             steps {
-                sh "aws cloudformation create-stack --stack-name ${STACK_NAME} --region ${AWS_REGION} --template-url https://test-cloudfront-cw.s3.amazonaws.com/cfn-template.yml --parameters ParameterKey=KeyPairName,ParameterValue=new-key --capabilities CAPABILITY_IAM"
+                echo 'Creating Docker Swarm'
+                sh "aws cloudformation create-stack --stack-name ${STACK_NAME} --region ${AWS_REGION} --template-body file://cfn-template.yml --parameters ParameterKey=KeyPairName,ParameterValue=${CFN_KEYPAIR} --capabilities CAPABILITY_IAM"
                 script {
                     sleep(150)
                     boolean condition = true ;
                     while ( condition == true ) {
-                        ip = sh "aws ec2 describe-instances --filters Name=tag:Name,Values='Docker Grand Master of ${STACK_NAME}' --query 'Reservations[*].Instances[*].PublicIpAddress' --output text" 
+                        ip = sh "aws ec2 describe-instances --filters Name=tag:Name,Values='Docker Grand Master of ${STACK_NAME}' --region ${AWS_REGION} --query 'Reservations[*].Instances[*].PublicIpAddress' --output text" 
                         if (ip.length > 7 ) {
+                            env.MASTER_INSTANCE_PUBLIC_IP = "$ip"
                             condition = false
                             sleep(10);
                         } else {
@@ -54,38 +59,58 @@ pipeline {
         }
         stage('test the Viz App') {
             steps {
+                echo "Testing if Docker Swarm is ready or not by checking the Viz App on Grand Master with Public IP:${MASTER_INSTANCE_PUBLIC_IP}:8080"
                 script {
-                    int counter = 0 ;
-                    while ( counter < 3 ) {
-                        println('Counting... ' +counter);
-                        sleep(2)
-                        counter++;
-                        //try catch block with groovy/java
-                        //sh 'curl ip:8080 ...' break
-                        //failure ... sleep(5)
+
+                    while(true) {
+                        try{
+                            sh "curl -s ${MASTER_INSTANCE_PUBLIC_IP}:8080"
+                            echo "Successfull connected to Viz App."
+                            break
+                        }
+                        catch(Exception){
+                            echo 'Could not connect to Viz App'
+                            sleep(5)
+                        }
                     }
                 }
             }
         }
         stage('deploying the application') {
+            environment {
+                Master_instance_ID = sh "aws ec2 describe-instances --filters Name=tag:Name,Values='Docker Grand Master of ${STACK_NAME}' --region ${AWS_REGION} --query 'Reservations[*].Instances[*].InstanceId' --output text"
+            }
             steps {
-                echo 'deploying the application'
-                //sh 'mssh .... git clone'
-                //sh 'mssh .... docker stack deploy'
+                echo "Cloning and Deploying App on Swarm using Grand Master with Instance Id: ${MASTER_INSTANCE_ID}"
+                sh """
+                mkdir -p /home/ec2-user/phonebook
+                cd /home/ec2-user/phonebook
+                cat << EOF | tee .env
+                ECR_REGISTRY=${ECR_REGISTRY}
+                APP_REPO_NAME=${APP_REPO_NAME}
+                EOF
+                """
+                sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} curl -o "docker-compose.yml" -L ${GIT_FILE_URL}docker-compose.yml"
+                sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} curl -o "init.sql" -L ${GIT_FILE_URL}init.sql"
+                sleep(10)
+                sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} docker stack deploy --with-registry-auth -c /home/ec2-user/phonebook/docker-compose.yml ${STACK_NAME}"
             }
         }
-        stage('test phonebook application') {
+        stage('Test the application'){
             steps {
-                echo 'test phonebook application'
+                echo 'Check if the application is ready or not'
                 script {
-                    int counter = 0 ;
-                    while ( counter < 3 ) {
-                        println('Counting... ' +counter);
-                        sleep(2)
-                        counter++;
-                        //try catch block with groovy/java
-                        //sh 'curl ip:8080 ...' break
-                        //failure ... sleep(5)
+
+                    while(true) {
+                        try{
+                            sh "curl -s ${MASTER_INSTANCE_PUBLIC_IP}"
+                            echo "Phonebook App is successfully deployed."
+                            break
+                        }
+                        catch(Exception){
+                            echo 'Could not connect to Phonebook App'
+                            sleep(5)
+                        }
                     }
                 }
             }
@@ -93,17 +118,18 @@ pipeline {
     }
     post {
         always {
+            echo 'Deleting all local images'
             sh "docker image rm ${ECR_REGISTRY}/${APP_REPO_NAME}:latest"
         }
         failure {
+            echo 'Deleting the image repository on ECR due to failure'
             sh """
                 aws ecr delete-repository \
                   --repository-name ${APP_REPO_NAME} \
                   --force --region ${AWS_REGION}
-                aws cloudformation delete-stack --stack-name ${STACK_NAME} --region ${AWS_REGION}"""
-        }
-        success { 
-            echo 'You are the man/woman...'
+                """
+            echo 'Deleting the cloudformation stack due to failure'
+            sh "aws cloudformation delete-stack --stack-name ${STACK_NAME} --region ${AWS_REGION}"
         }
     }
 }
