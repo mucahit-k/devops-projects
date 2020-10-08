@@ -8,6 +8,7 @@ pipeline {
         STACK_NAME="phonebook-${BUILD_NUMBER}"
         ECR_REGISTRY="331210975209.dkr.ecr.${AWS_REGION}.amazonaws.com"
         CFN_KEYPAIR="new-key"
+        PATH=sh(script:"echo $PATH:/usr/local/bin", returnStdout:true).trim()
         GITHUB_REPO="https://github.com/mucahit-k/devops-projects.git#:projects/204-jenkins-pipeline-for-phonebook-app-on-docker-swarm"
         GIT_FILE_URL="https://raw.githubusercontent.com/mucahit-k/devops-projects/master/projects/204-jenkins-pipeline-for-phonebook-app-on-docker-swarm/"
     }
@@ -83,8 +84,8 @@ pipeline {
             }
             steps {
                 echo "Cloning and Deploying App on Swarm using Grand Master with Instance Id: ${MASTER_INSTANCE_ID}"
-                sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} curl -o '/home/ec2-user/phonebook/docker-compose.yml' -L ${GIT_FILE_URL}docker-compose.yml"
-                sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} curl -o '/home/ec2-user/phonebook/init.sql' -L ${GIT_FILE_URL}init.sql"
+                sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} curl -s --create-dirs -o '/home/ec2-user/phonebook/docker-compose.yml' -L ${GIT_FILE_URL}docker-compose.yml"
+                sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} curl -s --create-dirs -o '/home/ec2-user/phonebook/init.sql' -L ${GIT_FILE_URL}init.sql"
                 sleep(10)
                 sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} docker stack deploy --with-registry-auth -c /home/ec2-user/phonebook/docker-compose.yml ${STACK_NAME}"
             }
@@ -112,7 +113,7 @@ pipeline {
     post {
         always {
             echo 'Deleting all local images'
-            sh "docker image rm ${ECR_REGISTRY}/${APP_REPO_NAME}:latest"
+            sh "docker image prune -af"
         }
         failure {
             echo 'Deleting the image repository on ECR due to failure'
