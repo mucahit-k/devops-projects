@@ -37,5 +37,5 @@ volumes:
     db-data:
 
 configs:
-  initialdb:
+  table:
     file: ./init.sql
