@@ -63,7 +63,7 @@ pipeline {
             steps {
                 echo "Testing if Docker Swarm is ready or not by checking the Viz App on Grand Master with Public IP:${MASTER_INSTANCE_PUBLIC_IP}:8080"
                 script {
-
+                    sleep(100)
                     while(true) {
                         try{
                             sh "curl -s ${MASTER_INSTANCE_PUBLIC_IP}:8080"
