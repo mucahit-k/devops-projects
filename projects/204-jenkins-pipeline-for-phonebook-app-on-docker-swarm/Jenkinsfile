@@ -87,7 +87,7 @@ pipeline {
                 sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} curl -s --create-dirs -o '/home/ec2-user/phonebook/docker-compose.yml' -L ${GIT_FILE_URL}docker-compose.yml"
                 sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} curl -s --create-dirs -o '/home/ec2-user/phonebook/init.sql' -L ${GIT_FILE_URL}init.sql"
                 sleep(10)
-                sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} docker stack deploy --with-registry-auth -c /home/ec2-user/phonebook/docker-compose.yml ${STACK_NAME}"
+                sh "mssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no --region ${AWS_REGION} ${MASTER_INSTANCE_ID} docker stack deploy -c /home/ec2-user/phonebook/docker-compose.yml ${STACK_NAME}"
             }
         }
         stage('Test the application'){
